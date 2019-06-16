@@ -1,20 +1,30 @@
 import sys
+import os
 import argparse
 import tensorflow as tf
 import numpy as np
 import gym
-import os
 import scipy.signal
 from time import time
 from gym import wrappers
 from tensorflow.python.training.summary_io import SummaryWriterCache
 from utils import RunningStats, discount, add_histogram
+from sp_utils import read_hyperparameters
 
 class DPPO(object):
     def __init__(self, environment, wid, ENTROPY_BETA = 0.0, LR = 0.0001, MINIBATCH = 32, EPOCHS = 10, EPSILON = 0.1, VF_COEFF = 1.0,           
                  L2_REG = 0.001, SIGMA_FLOOR = 0.0):
-        self.L2_REG = L2_REG
-        self.SIGMA_FLOOR = SIGMA_FLOOR
+        self.L2_REG = float(hyperparameters[15])
+        self.SIGMA_FLOOR = float(hyperparameters[16])
+        ENTROPY_BETA = float(hyperparameters[9])
+        LR = float(hyperparameters[10])
+        MINIBATCH = int(hyperparameters[11])
+        EPOCHS = int(hyperparameters[12])
+        EPSILON = float(hyperparameters[13])
+        VF_COEFF = float(hyperparameters[14])
+        L2_REG = float(hyperparameters[15])
+        SIGMA_FLOOR = float(hyperparameters[16])
+        BATCH_BUFFER_SIZE = int(hyperparameters[17])
 
         self.s_dim, self.a_dim = environment.observation_space.shape, environment.action_space.shape[0]
         self.a_bound = (environment.action_space.high - environment.action_space.low) / 2
@@ -28,7 +38,7 @@ class DPPO(object):
 
         self.dataset = tf.data.Dataset.from_tensor_slices({"state": self.state, "actions": self.actions,
                                                            "rewards": self.rewards, "advantage": self.advantage})
-        self.dataset = self.dataset.shuffle(buffer_size=10000)
+        self.dataset = self.dataset.shuffle(buffer_size=BATCH_BUFFER_SIZE)
         self.dataset = self.dataset.batch(MINIBATCH)
         self.dataset = self.dataset.cache()
         self.dataset = self.dataset.repeat(EPOCHS)
@@ -131,11 +141,15 @@ def start_parameter_server(pid, spec):
 
 class Worker(object):
     def __init__(self, wid, spec, EP_MAX = 30, GAMMA = 0.99, LAMBDA = 0.95, BATCH = 8192):
-        self.EP_MAX = EP_MAX
-        self.GAMMA = GAMMA
-        self.LAMBDA = LAMBDA
-        self.BATCH = BATCH
-
+        # Early stopping
+        self.BEST_REWARD = -float("inf")
+        self.EARLYSTOP = False
+        self.earlystop_r = 0
+        # Hyperparameters
+        self.EP_MAX = int(hyperparameters[5])
+        self.GAMMA = float(hyperparameters[6])
+        self.LAMBDA = float(hyperparameters[7])
+        self.BATCH = int(hyperparameters[8])
         self.wid = wid
         self.env = gym.make(ENVIRONMENT)
         print("Starting Worker #{}".format(wid))
@@ -145,6 +159,7 @@ class Worker(object):
             if self.wid == 0:
                 self.env = wrappers.Monitor(self.env, os.path.join(SUMMARY_DIR, ENVIRONMENT), video_callable=None)
             self.dppo = DPPO(self.env, self.wid)
+
     def work(self):
         hooks = [self.dppo.sync_replicas_hook]
         sess = tf.train.MonitoredTrainingSession(master=self.server.target, is_chief=(self.wid == 0),
@@ -155,7 +170,7 @@ class Worker(object):
         t, episode, terminal = 0, 0, False
         buffer_s, buffer_a, buffer_r, buffer_v, buffer_terminal = [], [], [], [], []
         rolling_r = RunningStats()
-        while not sess.should_stop() and not (episode > self.EP_MAX and self.wid == 0):
+        while not sess.should_stop() and not (episode > self.EP_MAX and self.wid == 0) and not self.EARLYSTOP:
             s = self.env.reset()
             ep_r, ep_t, ep_a = 0, 0, []
             while True:
@@ -189,7 +204,7 @@ class Worker(object):
                 t += 1
                 if terminal:
                     print('Worker_%i' % self.wid,
-                          '| Episode: %i' % episode, "| Reward: %.2f" % ep_r, '| Steps: %i' % ep_t)
+                          '| Episode: %i' % episode, "| Reward: %.2f" % ep_r, '| Steps: %i' % ep_t, end="\r")
                     if self.wid == 0:
                         worker_summary = tf.Summary()
                         worker_summary.value.add(tag="Reward", simple_value=ep_r)
@@ -202,32 +217,42 @@ class Worker(object):
                             pass
                         writer.add_summary(worker_summary, episode)
                         writer.flush()
+                        # Early stopping
+                        self.earlystop_r += ep_r
+                        if episode % 100 == 0:
+                            self.earlyStopping()
+                            self.earlystop_r = 0
                     episode += 1
                     break
         self.env.close()
+        print("\n", end="")
         print("Worker_%i finished" % self.wid)
+
+    def earlyStopping(self):
+        if self.earlystop_r <= self.BEST_REWARD:
+            self.EARLYSTOP = True
+        else:
+            self.BEST_REWARD = self.earlystop_r
 
 def main(_):
     pass
 
 if __name__ == '__main__':
-    ENVIRONMENT = 'Pendulum-v0'
+    hyperparameters = read_hyperparameters()
+    ENVIRONMENT = str(hyperparameters[0])
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    if type(tf.contrib) != type(tf): tf.contrib._warning = None
     tf.logging.set_verbosity(tf.logging.ERROR)
     parser = argparse.ArgumentParser()
     parser.add_argument('--job_name', action='store', dest='job_name', help='Either "ps" or "worker"')
     parser.add_argument('--task_index', action='store', dest='task_index', help='ID number of the job')
     parser.add_argument('--timestamp', action='store', dest='timestamp', help='Timestamp for output directory')
-    parser.add_argument('--workers', action='store', dest='n_workers', help='Number of workers')
-    parser.add_argument('--agg', action='store', dest='n_agg', help='Number of gradients to aggregate')
-    parser.add_argument('--ps', action='store', dest='ps', help='Number of parameter servers')
-    parser.add_argument('--output_dir', action='store', dest='output_dir', help='File location of output directory')
     args = parser.parse_args()
-    N_WORKER = int(args.n_workers)
-    N_AGG = int(args.n_agg)
-    PS = int(args.ps)
+    N_WORKER = int(hyperparameters[1])
+    N_AGG = int(hyperparameters[1]) - int(hyperparameters[2])
+    PS = int(hyperparameters[3])
     TIMESTAMP = str(args.timestamp)
-    OUTPUT_RESULTS_DIR = str(args.output_dir)
+    OUTPUT_RESULTS_DIR = ".\\OUTPUTS\\" + str(hyperparameters[4])
     SUMMARY_DIR = os.path.join(OUTPUT_RESULTS_DIR, "DPPO", ENVIRONMENT, TIMESTAMP)
     if PS == 0:
         spec = {"worker": ["localhost:" + str(2222 + PS + i) for i in range(N_WORKER)]}

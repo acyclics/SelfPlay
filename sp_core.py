@@ -2,11 +2,11 @@
 https://arxiv.org/pdf/1710.03748.pdf
 '''
 import numpy as np
-from stable_baselines.common.policies import MlpPolicy, MlpLstmPolicy
-from stable_baselines.common.vec_env import DummyVecEnv, SubprocVecEnv
-from stable_baselines.ddpg.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise, AdaptiveParamNoiseSpec
-from stable_baselines.gail import ExpertDataset, generate_expert_traj
-from stable_baselines import DDPG, PPO2, GAIL
+import subprocess
+from time import time, sleep
+import datetime
+import os
+from sp_utils import read_settings, read_hyperparameters, write_settings
 
 class History:
     def __init__(self, n_players, buffer_max):
@@ -24,35 +24,132 @@ class History:
         return self.players[no]
 
 class SelfPlay:
-    def __init__(self, n_agents, buffer_max, n_cpu, rollout_ts):
-        self.n_agents = n_agents
-        self.histories = History(buffer_max)
-        self.n_cpu = n_cpu
-        self.rollout_ts = rollout_ts
-        #train once for param
-    def play(self):
-        player_env = self.get_env("player1")
-        player_env = SubprocVecEnv([lambda: player_env for i in range(self.n_cpu)])
-        model = PPO2(policy=MlpPolicy, env=player_env, gamma=0.99, n_steps=100, ent_coef=0.01, learning_rate=0.00025, 
-                vf_coef=0.5, max_grad_norm=0.5, lam=0.95, nminibatches=4, noptepochs=4, cliprange=0.2, 
-                verbose=0, tensorboard_log=None, _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False)
-        model.learn(total_timesteps=self.rollout_ts, callback=None, seed=None, log_interval=1, tb_log_name='PPO2', reset_num_timesteps=True)
-        self.histories.add("player1", model.get_parameters())
-        player_env = self.get_env("player2")
-        player_env = SubprocVecEnv([lambda: player_env for i in range(self.n_cpu)])
-        model = PPO2(policy=MlpPolicy, env=player_env, gamma=0.99, n_steps=100, ent_coef=0.01, learning_rate=0.00025, 
-                vf_coef=0.5, max_grad_norm=0.5, lam=0.95, nminibatches=4, noptepochs=4, cliprange=0.2, 
-                verbose=0, tensorboard_log=None, _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False)
-        model.learn(total_timesteps=self.rollout_ts, callback=None, seed=None, log_interval=1, tb_log_name='PPO2', reset_num_timesteps=True)
-        self.histories.add("player2", model.get_parameters())
-    def get_env(self, player):
-        if player == "player1":
-            player1 = model.load_parameters(self.histories.player1[-1])
-            player2 = self.histories.sample("player2")
-            env = self.env1(player1, player2)
-            return env
-        if player == "player2":
-            player2 = model.load_parameters(self.histories.player2[-1])
-            player1 = self.histories.sample("player1")
-            env = self.env2(player2, player1)
-            return env
+    def __init__(self):
+        # Read data from save
+        self.a = 1
+
+    def process_interface(self):
+        print("**************************************************\n",
+              "********************SELF-PLAY*********************\n",
+              "**************************************************\n")
+        user_input = 1
+        while (user_input):
+            print("1 : Train\n",
+                  "2 : Configure training\n",
+                  "3 : Elo\n",
+                  "0 : Exit\n",
+                  "INPUT: ", end="")
+            user_input = int(input())
+            self.process_handle(user_input)
+
+    def process_handle(self, user_input):
+        if user_input == 1:
+            self.process_train()
+        elif user_input == 2:
+            self.process_configure()
+        elif user_input == 0:
+            return
+        else:
+            print("Invalid input")
+
+    def process_configure(self):
+        user_input = 1
+        while (user_input):
+            print("1 : Environment\n",
+                  "2 : Number of workers\n",
+                  "3 : Ignored gradients\n",
+                  "4 : Parameter servers\n",
+                  "5 : Name of output directory\n",
+                  "6 : Number of episodes for each worker\n",
+                  "7 : Gamma\n",
+                  "8 : Lambda\n",
+                  "9 : Timesteps till update\n",
+                  "10 : Entropy beta\n",
+                  "11 : Learning rate\n",
+                  "12 : Size of minibatch\n",
+                  "13 : Epochs\n",
+                  "14 : Epsilon\n",
+                  "15 : Value function coefficient\n",
+                  "16 : L2 regularization\n",
+                  "17 : Sigma floor\n",
+                  "18 : Batch's buffer size\n",
+                  "0 : Exit\n",
+                  "INPUT: ", end="")
+            user_input = int(input())
+            if user_input == 0:
+                return
+            else:
+                self.process_configure_handle(user_input)
+
+    def process_configure_handle(self, user_input):
+        settings = read_settings()
+        newValue = input("New value: ")
+        if user_input == 1:
+            settings[0] = "EV=" + str(newValue) + "\n"
+        elif user_input == 2:
+            settings[1] = "WS=" + str(newValue) + "\n"
+        elif user_input == 3:
+            settings[2] = "DD=" + str(newValue) + "\n"
+        elif user_input == 4:
+            settings[3] = "PS=" + str(newValue) + "\n"
+        elif user_input == 5:
+            settings[4] = "OD=" + str(newValue) + "\n"
+        elif user_input == 6:
+            settings[5] = "ES=" + str(newValue) + "\n"
+        elif user_input == 7:
+            settings[6] = "GA=" + str(newValue) + "\n"
+        elif user_input == 8:
+            settings[7] = "LA=" + str(newValue) + "\n"
+        elif user_input == 9:
+            settings[8] = "US=" + str(newValue) + "\n"
+        elif user_input == 10:
+            settings[9] = "EB=" + str(newValue) + "\n"
+        elif user_input == 11:
+            settings[10] = "LR=" + str(newValue) + "\n"
+        elif user_input == 12:
+            settings[11] = "SB=" + str(newValue) + "\n"
+        elif user_input == 13:
+            settings[12] = "EP=" + str(newValue) + "\n"
+        elif user_input == 14:
+            settings[13] = "EN=" + str(newValue) + "\n"
+        elif user_input == 15:
+            settings[14] = "VF=" + str(newValue) + "\n"
+        elif user_input == 16:
+            settings[15] = "L2=" + str(newValue) + "\n"
+        elif user_input == 17:
+            settings[16] = "SF=" + str(newValue) + "\n"
+        elif user_input == 18:
+            settings[17] = "BB=" + str(newValue) + "\n"
+        else:
+            print("Invalid input")
+        write_settings(settings)
+
+    def error_configure(self):
+        a = 2
+
+    def process_train(self):
+        hyperparameters = read_hyperparameters()
+        N_WORKERS = int(hyperparameters[1])
+        PS = int(hyperparameters[2])
+        ts = time()
+        TIMESTAMP = datetime.datetime.fromtimestamp(ts).strftime('%Y_%m_%d_%H_%M_%S')
+        processes = []
+        with open(os.devnull, 'w') as tempf:
+            for p in range(PS):
+                cmd = "python algo_dppo.py --timestamp=" + str(TIMESTAMP) + " --job_name=\"ps\" --task_index=" + str(p)
+                processes.append(subprocess.Popen(cmd, shell=True, stdout=tempf, stderr=tempf))
+            for w in range(N_WORKERS):
+                cmd = "python algo_dppo.py --timestamp=" + str(TIMESTAMP) + " --job_name=\"worker\" --task_index=" + str(w)
+                if w == 0:
+                    processes.append(subprocess.Popen(cmd, shell=True))
+                else:
+                    processes.append(subprocess.Popen(cmd, shell=True, stdout=tempf, stderr=tempf))
+
+            processes[PS].wait()
+            for p in processes:
+                termination = subprocess.Popen("TASKKILL /F /PID {pid} /T".format(pid=p.pid), stdout=tempf, stderr=tempf)
+                termination.wait()
+
+if __name__ == "__main__":
+    game = SelfPlay()
+    game.process_interface()
