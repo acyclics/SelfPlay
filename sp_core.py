@@ -40,6 +40,7 @@ class SelfPlay:
                   "0 : Exit\n",
                   "INPUT: ", end="")
             user_input = int(input())
+            os.system('cls')
             self.process_handle(user_input)
 
     def process_handle(self, user_input):
@@ -77,6 +78,7 @@ class SelfPlay:
                   "INPUT: ", end="")
             user_input = int(input())
             if user_input == 0:
+                os.system('cls')
                 return
             else:
                 self.process_configure_handle(user_input)
@@ -84,6 +86,7 @@ class SelfPlay:
     def process_configure_handle(self, user_input):
         settings = read_settings()
         newValue = input("New value: ")
+        os.system('cls')
         if user_input == 1:
             settings[0] = "EV=" + str(newValue) + "\n"
         elif user_input == 2:
@@ -124,9 +127,6 @@ class SelfPlay:
             print("Invalid input")
         write_settings(settings)
 
-    def error_configure(self):
-        a = 2
-
     def process_train(self):
         hyperparameters = read_hyperparameters()
         N_WORKERS = int(hyperparameters[1])
@@ -150,6 +150,8 @@ class SelfPlay:
                 termination = subprocess.Popen("TASKKILL /F /PID {pid} /T".format(pid=p.pid), stdout=tempf, stderr=tempf)
                 termination.wait()
 
-if __name__ == "__main__":
-    game = SelfPlay()
-    game.process_interface()
+    def load_rating(self, player1, player2):
+        return 1, 2
+
+    def update_rating(self, winner, loser):
+        return 1

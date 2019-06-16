@@ -123,7 +123,7 @@ class DPPO(object):
                 e_time.append(time() - e_start)
             except tf.errors.OutOfRangeError:
                 break
-        print("Worker_%i Trained in %.3fs at %.3fs/batch. Global step %i" % (self.wid, time() - start, np.mean(e_time), step))
+        #print("Worker_%i Trained in %.3fs at %.3fs/batch. Global step %i" % (self.wid, time() - start, np.mean(e_time), step))
         return summary
 
     def evaluate_state(self, state, sess, stochastic=True):
@@ -203,8 +203,8 @@ class Worker(object):
                 ep_t += 1
                 t += 1
                 if terminal:
-                    print('Worker_%i' % self.wid,
-                          '| Episode: %i' % episode, "| Reward: %.2f" % ep_r, '| Steps: %i' % ep_t, end="\r")
+                    percentage = int(float(episode) * 100 / float(self.EP_MAX))
+                    print("Percentage: {0:3d}% | Worker_{1} | Episode: {2} | Reward: {3} | Steps: {4}".format(percentage, self.wid, episode, ep_r, ep_t), end='\r')
                     if self.wid == 0:
                         worker_summary = tf.Summary()
                         worker_summary.value.add(tag="Reward", simple_value=ep_r)
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     N_AGG = int(hyperparameters[1]) - int(hyperparameters[2])
     PS = int(hyperparameters[3])
     TIMESTAMP = str(args.timestamp)
-    OUTPUT_RESULTS_DIR = ".\\OUTPUTS\\" + str(hyperparameters[4])
+    OUTPUT_RESULTS_DIR = ".\\outputs\\" + str(hyperparameters[4])
     SUMMARY_DIR = os.path.join(OUTPUT_RESULTS_DIR, "DPPO", ENVIRONMENT, TIMESTAMP)
     if PS == 0:
         spec = {"worker": ["localhost:" + str(2222 + PS + i) for i in range(N_WORKER)]}
