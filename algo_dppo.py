@@ -1,5 +1,4 @@
 import sys
-sys.path.append("~/Desktop/Mods/ai/projects/selfplay")
 import argparse
 import tensorflow as tf
 import numpy as np
@@ -10,9 +9,6 @@ from time import time
 from gym import wrappers
 from tensorflow.python.training.summary_io import SummaryWriterCache
 from utils import RunningStats, discount, add_histogram
-OUTPUT_RESULTS_DIR = ".\\outputs"
-
-PORT_OFFSET = 200  # number to offset the port from 2222. Useful for multiple runs
 
 class DPPO(object):
     def __init__(self, environment, wid, ENTROPY_BETA = 0.0, LR = 0.0001, MINIBATCH = 32, EPOCHS = 10, EPSILON = 0.1, VF_COEFF = 1.0,           
@@ -225,17 +221,19 @@ if __name__ == '__main__':
     parser.add_argument('--workers', action='store', dest='n_workers', help='Number of workers')
     parser.add_argument('--agg', action='store', dest='n_agg', help='Number of gradients to aggregate')
     parser.add_argument('--ps', action='store', dest='ps', help='Number of parameter servers')
+    parser.add_argument('--output_dir', action='store', dest='output_dir', help='File location of output directory')
     args = parser.parse_args()
     N_WORKER = int(args.n_workers)
     N_AGG = int(args.n_agg)
     PS = int(args.ps)
     TIMESTAMP = str(args.timestamp)
+    OUTPUT_RESULTS_DIR = str(args.output_dir)
     SUMMARY_DIR = os.path.join(OUTPUT_RESULTS_DIR, "DPPO", ENVIRONMENT, TIMESTAMP)
     if PS == 0:
-        spec = {"worker": ["localhost:" + str(2222 + PS + i + PORT_OFFSET) for i in range(N_WORKER)]}
+        spec = {"worker": ["localhost:" + str(2222 + PS + i) for i in range(N_WORKER)]}
     else:
-        spec = {"ps": ["localhost:" + str(2222 + i + PORT_OFFSET) for i in range(PS)],
-                "worker": ["localhost:" + str(2222 + PS + i + PORT_OFFSET) for i in range(N_WORKER)]}
+        spec = {"ps": ["localhost:" + str(2222 + i) for i in range(PS)],
+                "worker": ["localhost:" + str(2222 + PS + i) for i in range(N_WORKER)]}
     if args.job_name == "ps":
         tf.app.run(start_parameter_server(int(args.task_index), spec))
     elif args.job_name == "worker":
