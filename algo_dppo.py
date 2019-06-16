@@ -12,7 +12,7 @@ from tensorflow.python.training.summary_io import SummaryWriterCache
 from utils import RunningStats, discount, add_histogram
 OUTPUT_RESULTS_DIR = ".\\outputs"
 
-PORT_OFFSET = 160  # number to offset the port from 2222. Useful for multiple runs
+PORT_OFFSET = 200  # number to offset the port from 2222. Useful for multiple runs
 
 class DPPO(object):
     def __init__(self, environment, wid, ENTROPY_BETA = 0.0, LR = 0.0001, MINIBATCH = 32, EPOCHS = 10, EPSILON = 0.1, VF_COEFF = 1.0,           
@@ -134,7 +134,7 @@ def start_parameter_server(pid, spec):
     server.join()
 
 class Worker(object):
-    def __init__(self, wid, spec, EP_MAX = 1000, GAMMA = 0.99, LAMBDA = 0.95, BATCH = 8192):
+    def __init__(self, wid, spec, EP_MAX = 30, GAMMA = 0.99, LAMBDA = 0.95, BATCH = 8192):
         self.EP_MAX = EP_MAX
         self.GAMMA = GAMMA
         self.LAMBDA = LAMBDA
@@ -192,7 +192,6 @@ class Worker(object):
                 ep_t += 1
                 t += 1
                 if terminal:
-                    # End of episode summary
                     print('Worker_%i' % self.wid,
                           '| Episode: %i' % episode, "| Reward: %.2f" % ep_r, '| Steps: %i' % ep_t)
                     if self.wid == 0:
