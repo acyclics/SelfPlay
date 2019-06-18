@@ -133,11 +133,18 @@ class DPPO(object):
             action, value = sess.run([self.eval_action, self.vf_eval], {self.state: state[np.newaxis, :]})
         return action[0], np.squeeze(value)
 
+''' FUNCTIONS TO FACILITATE TRAINING '''
+
 def start_parameter_server(pid, spec):
     cluster = tf.train.ClusterSpec(spec)
     server = tf.train.Server(cluster, job_name="ps", task_index=pid)
     print("Starting PS #{}".format(pid))
     server.join()
+
+def InitAssignFn(scaffold, sess):
+    sess.run(init_assign_op, init_feed_dict)
+
+''' END of FUNCTIONS TO FACILITATE TRAINING '''
 
 class Worker(object):
     def __init__(self, wid, spec, EP_MAX = 30, GAMMA = 0.99, LAMBDA = 0.95, BATCH = 8192):
@@ -164,6 +171,7 @@ class Worker(object):
         hooks = [self.dppo.sync_replicas_hook]
         sess = tf.train.MonitoredTrainingSession(master=self.server.target, is_chief=(self.wid == 0),
                                                  checkpoint_dir=SUMMARY_DIR,
+                                                 scaffold=scaffold,
                                                  save_summaries_steps=None, save_summaries_secs=None, hooks=hooks)
         if self.wid == 0:
             writer = SummaryWriterCache.get(SUMMARY_DIR)
@@ -219,7 +227,7 @@ class Worker(object):
                         writer.flush()
                         # Early stopping
                         self.earlystop_r += ep_r
-                        if episode % 100 == 0:
+                        if (episode + 1) % 100 == 0:
                             self.earlyStopping()
                             self.earlystop_r = 0
                     episode += 1
@@ -246,14 +254,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--job_name', action='store', dest='job_name', help='Either "ps" or "worker"')
     parser.add_argument('--task_index', action='store', dest='task_index', help='ID number of the job')
+    parser.add_argument('--sample', action='store', dest='sample', help='Directory to sample pre-train model from. None if no sampling')
     parser.add_argument('--timestamp', action='store', dest='timestamp', help='Timestamp for output directory')
     args = parser.parse_args()
     N_WORKER = int(hyperparameters[1])
     N_AGG = int(hyperparameters[1]) - int(hyperparameters[2])
     PS = int(hyperparameters[3])
     TIMESTAMP = str(args.timestamp)
-    OUTPUT_RESULTS_DIR = ".\\outputs\\" + str(hyperparameters[4])
-    SUMMARY_DIR = os.path.join(OUTPUT_RESULTS_DIR, "DPPO", ENVIRONMENT, TIMESTAMP)
+    SAMPLE = str(args.sample)
+    SUMMARY_DIR = ".\\players\\tmp\\"
+    if SAMPLE != "None":
+        variables_to_restore = tf.contrib.framework.get_variables_to_restore()
+        ckpt = tf.train.latest_checkpoint("C:\\Users\\impec\\Desktop\\Mods\\ai\\projects\\selfplay\\outputs\\pendulum\\DPPO\\Pendulum-v0\\2019_06_18_03_25_39")
+        init_assign_op, init_feed_dict = tf.contrib.framework.assign_from_checkpoint(ckpt, variables_to_restore)
+        scaffold = tf.train.Scaffold(saver=tf.train.Saver(), init_fn=InitAssignFn)
+    else:
+        scaffold = None
     if PS == 0:
         spec = {"worker": ["localhost:" + str(2222 + PS + i) for i in range(N_WORKER)]}
     else:
@@ -264,3 +280,13 @@ if __name__ == '__main__':
     elif args.job_name == "worker":
         w = Worker(int(args.task_index), spec)
         tf.app.run(w.work())
+
+'''
+https://arxiv.org/pdf/1710.03748.pdf adjustments:
+- multiple rollouts in parallel for each agent and have separate optimizers for each agent
+- We collect a large amount of rollouts from the parallel workers and for each agent optimize 
+    the objective with the collected batch on 4 GPUs
+- Instead of estimating a truncated generalized advantage estimate (GAE) from a small number of steps 
+    per rollout, as in Schulman et al. (2017); Heess et al. (2017), we estimate GAE from the full rollouts. 
+    This is important as the competition reward is a sparse reward given at the termination of the episode
+'''

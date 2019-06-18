@@ -127,7 +127,7 @@ class SelfPlay:
             print("Invalid input")
         write_settings(settings)
 
-    def process_train(self):
+    def process_train(self, sample_path):
         hyperparameters = read_hyperparameters()
         N_WORKERS = int(hyperparameters[1])
         PS = int(hyperparameters[2])
@@ -136,10 +136,10 @@ class SelfPlay:
         processes = []
         with open(os.devnull, 'w') as tempf:
             for p in range(PS):
-                cmd = "python algo_dppo.py --timestamp=" + str(TIMESTAMP) + " --job_name=\"ps\" --task_index=" + str(p)
+                cmd = "python algo_dppo.py --timestamp=" + str(TIMESTAMP) + " --job_name=\"ps\" --task_index=" + str(p) + " --sample=" + str(sample_path)
                 processes.append(subprocess.Popen(cmd, shell=True, stdout=tempf, stderr=tempf))
             for w in range(N_WORKERS):
-                cmd = "python algo_dppo.py --timestamp=" + str(TIMESTAMP) + " --job_name=\"worker\" --task_index=" + str(w)
+                cmd = "python algo_dppo.py --timestamp=" + str(TIMESTAMP) + " --job_name=\"worker\" --task_index=" + str(w) + " --sample=" + str(sample_path)
                 if w == 0:
                     processes.append(subprocess.Popen(cmd, shell=True))
                 else:
