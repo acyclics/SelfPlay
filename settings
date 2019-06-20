@@ -1,8 +1,8 @@
-EV=Pendulum-v0
-WS=6
+EV=custom
+WS=3
 DD=2
 PS=1
-OD=pendulum
+OD=chaser
 ES=50
 GA=0.99
 LA=0.95
@@ -16,3 +16,6 @@ VF=1.0
 L2=0.001
 SF=0.0
 BB=10000
+P2=runner
+E2=custom
+

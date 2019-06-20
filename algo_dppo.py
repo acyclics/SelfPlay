@@ -10,6 +10,7 @@ from gym import wrappers
 from tensorflow.python.training.summary_io import SummaryWriterCache
 from utils import RunningStats, discount, add_histogram
 from sp_utils import read_hyperparameters
+from game import Game
 
 class DPPO(object):
     def __init__(self, environment, wid, ENTROPY_BETA = 0.0, LR = 0.0001, MINIBATCH = 32, EPOCHS = 10, EPSILON = 0.1, VF_COEFF = 1.0,           
@@ -148,6 +149,9 @@ def InitAssignFn(scaffold, sess):
 
 class Worker(object):
     def __init__(self, wid, spec, EP_MAX = 30, GAMMA = 0.99, LAMBDA = 0.95, BATCH = 8192):
+        # Selfplay
+        self.MY_R = 0
+        self.OPPON_R = 0
         # Early stopping
         self.BEST_REWARD = -float("inf")
         self.EARLYSTOP = False
@@ -158,17 +162,31 @@ class Worker(object):
         self.LAMBDA = float(hyperparameters[7])
         self.BATCH = int(hyperparameters[8])
         self.wid = wid
-        self.env = gym.make(ENVIRONMENT)
-        print("Starting Worker #{}".format(wid))
+        if ENVIRONMENT == "custom":
+            if MODE == 1:
+                player = "Chaser"
+            else:
+                player = "Runner"
+            self.env = Game(5, 200, player, OPPONENT, FIRST)
+        else:
+            self.env = gym.make(ENVIRONMENT)
+        #print("Starting Worker #{}".format(wid))
         cluster = tf.train.ClusterSpec(spec)
         self.server = tf.train.Server(cluster, job_name="worker", task_index=wid)
         with tf.device(tf.train.replica_device_setter(worker_device="/job:worker/task:%d" % wid, cluster=cluster)):
-            if self.wid == 0:
-                self.env = wrappers.Monitor(self.env, os.path.join(SUMMARY_DIR, ENVIRONMENT), video_callable=None)
             self.dppo = DPPO(self.env, self.wid)
 
     def work(self):
         hooks = [self.dppo.sync_replicas_hook]
+        if not FIRST:
+            a = 2
+            #variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=['pi', 'vf'])
+            #ckpt = SAMPLE
+            #init_assign_op, init_feed_dict = tf.contrib.framework.assign_from_checkpoint(ckpt, variables_to_restore)
+            #scaffold = tf.train.Scaffold(saver=tf.train.Saver(), init_fn=InitAssignFn)
+        else:
+            scaffold = None
+        scaffold = None
         sess = tf.train.MonitoredTrainingSession(master=self.server.target, is_chief=(self.wid == 0),
                                                  checkpoint_dir=SUMMARY_DIR,
                                                  scaffold=scaffold,
@@ -205,14 +223,16 @@ class Worker(object):
                 buffer_terminal.append(terminal)
                 ep_a.append(a)
                 a = np.clip(a, self.env.action_space.low, self.env.action_space.high)
-                s, r, terminal, _ = self.env.step(a)
+                s, r, terminal, opponent_r = self.env.step(a)
                 buffer_r.append(r)
                 ep_r += r
+                self.MY_R += r
+                self.OPPON_R += opponent_r
                 ep_t += 1
                 t += 1
                 if terminal:
                     percentage = int(float(episode) * 100 / float(self.EP_MAX))
-                    print("Percentage: {0:3d}% | Worker_{1} | Episode: {2} | Reward: {3} | Steps: {4}".format(percentage, self.wid, episode, ep_r, ep_t), end='\r')
+                    #print("Percentage: {0:3d}% | Worker_{1} | Episode: {2} | Reward: {3} | Steps: {4}".format(percentage, self.wid, episode, ep_r, ep_t), end='\r')
                     if self.wid == 0:
                         worker_summary = tf.Summary()
                         worker_summary.value.add(tag="Reward", simple_value=ep_r)
@@ -228,13 +248,14 @@ class Worker(object):
                         # Early stopping
                         self.earlystop_r += ep_r
                         if (episode + 1) % 100 == 0:
-                            self.earlyStopping()
+                            #self.earlyStopping()
                             self.earlystop_r = 0
                     episode += 1
                     break
         self.env.close()
-        print("\n", end="")
-        print("Worker_%i finished" % self.wid)
+        #print("\n", end="")
+        #print("Worker_%i finished" % self.wid)
+        print(self.MY_R, self.OPPON_R)
 
     def earlyStopping(self):
         if self.earlystop_r <= self.BEST_REWARD:
@@ -253,23 +274,22 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.ERROR)
     parser = argparse.ArgumentParser()
     parser.add_argument('--job_name', action='store', dest='job_name', help='Either "ps" or "worker"')
+    parser.add_argument('--first', action='store', dest='first', help='Either false or true, so zero or one')
     parser.add_argument('--task_index', action='store', dest='task_index', help='ID number of the job')
     parser.add_argument('--sample', action='store', dest='sample', help='Directory to sample pre-train model from. None if no sampling')
+    parser.add_argument('--opponent', action='store', dest='opponent', help='Directory of opponent')
     parser.add_argument('--timestamp', action='store', dest='timestamp', help='Timestamp for output directory')
+    parser.add_argument('--mode', action='store', dest='mode', help='1 or 2, first or second player')
     args = parser.parse_args()
     N_WORKER = int(hyperparameters[1])
     N_AGG = int(hyperparameters[1]) - int(hyperparameters[2])
     PS = int(hyperparameters[3])
     TIMESTAMP = str(args.timestamp)
     SAMPLE = str(args.sample)
+    OPPONENT = str(args.opponent)
+    FIRST = int(args.first)
     SUMMARY_DIR = ".\\players\\tmp\\"
-    if SAMPLE != "None":
-        variables_to_restore = tf.contrib.framework.get_variables_to_restore()
-        ckpt = tf.train.latest_checkpoint("C:\\Users\\impec\\Desktop\\Mods\\ai\\projects\\selfplay\\outputs\\pendulum\\DPPO\\Pendulum-v0\\2019_06_18_03_25_39")
-        init_assign_op, init_feed_dict = tf.contrib.framework.assign_from_checkpoint(ckpt, variables_to_restore)
-        scaffold = tf.train.Scaffold(saver=tf.train.Saver(), init_fn=InitAssignFn)
-    else:
-        scaffold = None
+    MODE = int(args.mode)        
     if PS == 0:
         spec = {"worker": ["localhost:" + str(2222 + PS + i) for i in range(N_WORKER)]}
     else:
