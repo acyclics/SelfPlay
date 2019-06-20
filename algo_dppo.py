@@ -142,9 +142,6 @@ def start_parameter_server(pid, spec):
     print("Starting PS #{}".format(pid))
     server.join()
 
-def InitAssignFn(scaffold, sess):
-    sess.run(init_assign_op, init_feed_dict)
-
 ''' END of FUNCTIONS TO FACILITATE TRAINING '''
 
 class Worker(object):
@@ -179,14 +176,11 @@ class Worker(object):
     def work(self):
         hooks = [self.dppo.sync_replicas_hook]
         if not FIRST:
-            a = 2
-            #variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=['pi', 'vf'])
-            #ckpt = SAMPLE
-            #init_assign_op, init_feed_dict = tf.contrib.framework.assign_from_checkpoint(ckpt, variables_to_restore)
-            #scaffold = tf.train.Scaffold(saver=tf.train.Saver(), init_fn=InitAssignFn)
+            variables_to_restore = tf.contrib.framework.get_variables_to_restore()
+            self.init_assign_op, self.init_feed_dict = tf.contrib.framework.assign_from_checkpoint(tf.train.latest_checkpoint(SAMPLE), variables_to_restore)
+            scaffold = tf.train.Scaffold(saver=tf.train.Saver(), init_fn=self.InitAssignFn)
         else:
             scaffold = None
-        scaffold = None
         sess = tf.train.MonitoredTrainingSession(master=self.server.target, is_chief=(self.wid == 0),
                                                  checkpoint_dir=SUMMARY_DIR,
                                                  scaffold=scaffold,
@@ -199,6 +193,8 @@ class Worker(object):
         while not sess.should_stop() and not (episode > self.EP_MAX and self.wid == 0) and not self.EARLYSTOP:
             s = self.env.reset()
             ep_r, ep_t, ep_a = 0, 0, []
+            self.MY_R = 0
+            self.OPPON_R = 0
             while True:
                 a, v = self.dppo.evaluate_state(s, sess)
                 if t == self.BATCH:
@@ -256,6 +252,9 @@ class Worker(object):
         #print("\n", end="")
         #print("Worker_%i finished" % self.wid)
         print(self.MY_R, self.OPPON_R)
+
+    def InitAssignFn(self, scaffold, sess):
+        sess.run(self.init_assign_op, self.init_feed_dict)
 
     def earlyStopping(self):
         if self.earlystop_r <= self.BEST_REWARD:

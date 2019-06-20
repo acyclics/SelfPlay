@@ -1,9 +1,0 @@
-Tue Jun 18 22:11:21 2019
-ERROR: Could not open directory
-
-Tue Jun 18 22:11:21 2019
-ERROR: Could not open directory
-
-Thu Jun 20 06:23:04 2019
-ERROR: Could not open directory
-

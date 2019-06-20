@@ -77,8 +77,8 @@ class Game:
         return oppe_a
     def action_handle(self, s, a):
         if self.mode == "Chaser":
-            a[0] = min(abs(a[0]), 0.5) * (a[0] / abs(a[0]))
-            a[1] = min(abs(a[1]), 0.5) * (a[1] / abs(a[1]))
+            a[0] = min(abs(a[0]), 5) * (a[0] / abs(a[0]))
+            a[1] = min(abs(a[1]), 5) * (a[1] / abs(a[1]))
             self.sim.data.qvel[0:2] = a[0:2]
             if not self.first:
                 oppe_a = self.read_model(s)
@@ -87,8 +87,8 @@ class Game:
             self.sim.data.qvel[2:4] = a[0:2]
             if not self.first:
                 oppe_a = self.read_model(s)
-                oppe_a[0] = min(abs(oppe_a[0]), 0.5) * (oppe_a[0] / abs(oppe_a[0]))
-                oppe_a[1] = min(abs(oppe_a[1]), 0.5) * (oppe_a[1] / abs(oppe_a[1]))
+                oppe_a[0] = min(abs(oppe_a[0]), 5) * (oppe_a[0] / abs(oppe_a[0]))
+                oppe_a[1] = min(abs(oppe_a[1]), 5) * (oppe_a[1] / abs(oppe_a[1]))
                 self.sim.data.qvel[0:2] = oppe_a[0:2]
     ''' END '''
 
@@ -110,15 +110,15 @@ class Game:
     def reward_func(self):
         vec = self.get_body_com("Runner") - self.get_body_com("Chaser")
         dist = np.linalg.norm(vec)
-        eps = 0.001
+        eps = 2
         if self.mode == "Chaser":
-            if dist < eps:
-                return True, 100, -100
+            if dist <= eps:
+                return True, 100000, -100000
             else:
                 reward = -dist
         else:
-            if dist < eps:
-                return True, -100, 100
+            if dist <= eps:
+                return True, -100000, 100000
             reward = dist
         return False, reward, -reward
     def viewer_setup(self):

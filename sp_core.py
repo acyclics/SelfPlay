@@ -169,6 +169,7 @@ class SelfPlay:
                 player1.player_rating, player2.player_rating = trueskill.rate_1vs1(player1.player_rating, player2.player_rating, drawn=draw)
             else:
                 player2.player_rating, player1.player_rating = trueskill.rate_1vs1(player2.player_rating, player1.player_rating, drawn=draw)
+            self.format_tmp_models()
             player1.record_player()
             player2.update(p2_dir)
 
@@ -186,13 +187,23 @@ class SelfPlay:
                 player2.player_rating, player1.player_rating = trueskill.rate_1vs1(player2.player_rating, player1.player_rating, drawn=draw)
             else:
                 player1.player_rating, player2.player_rating = trueskill.rate_1vs1(player1.player_rating, player2.player_rating, drawn=draw)
+            self.format_tmp_models()
             player2.record_player()
             player1.update(p1_dir)
             
-    '''
-    def cpdir_to_tmp(self, path):
-        shutil.copy(path, ".\\players\\tmp")
-    '''
+    def format_tmp_models(self):
+        with open(".\\players\\tmp\\checkpoint", "r") as file:
+            checkpoints = file.readlines()
+        checkpoints = [checkpoints[0], checkpoints[-1]]
+        model_to_save = str(checkpoints[-1]).split(' ')
+        model_to_save = str(model_to_save[1])
+        model_to_save = model_to_save[1:-2]
+        with open(".\\players\\tmp\\checkpoint", "w") as file:
+            file.writelines(checkpoints)
+        for f in os.listdir(".\\players\\tmp"):
+            if "ckpt" in f and model_to_save not in f:
+                os.remove(os.path.join(".\\players\\tmp", f))
+
     def process_compete(self):
         rounds = input("How many rounds? ")
         os.system('cls')

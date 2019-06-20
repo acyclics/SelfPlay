@@ -36,6 +36,9 @@ def main(_):
     pass
 
 if __name__ == '__main__':
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    if type(tf.contrib) != type(tf): tf.contrib._warning = None
+    tf.logging.set_verbosity(tf.logging.ERROR)
     parser = argparse.ArgumentParser()
     parser.add_argument('--a_high', action='store', dest='a_high', help='Action space hgih')
     parser.add_argument('--a_low', action='store', dest='a_low', help='Action space low')
@@ -52,9 +55,10 @@ if __name__ == '__main__':
     observation_space = spaces.Box(low, high, dtype=np.float32)
 
     oppo = Infer(action_space.high, action_space.low, action_space.shape[0], observation_space.shape)
-    restorer = tf.train.import_meta_graph(os.path.join(opponent, "model.ckpt-0.meta"), clear_devices=True)
+    ckpt = tf.train.latest_checkpoint(opponent)
+    restorer = tf.train.import_meta_graph(ckpt + ".meta", clear_devices=True)
     sess = tf.Session()
-    restorer.restore(sess, os.path.join(opponent, "model.ckpt-0"))
+    restorer.restore(sess, ckpt)
     graph = tf.get_default_graph()
     sess.run(tf.global_variables_initializer())
     print("OK")

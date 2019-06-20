@@ -2,6 +2,7 @@ import trueskill
 import os
 import re
 import shutil
+import tensorflow as tf
 
 class Player:
     def __init__(self, name, env):
@@ -37,9 +38,7 @@ class Player:
         model = os.listdir(".\\players\\tmp")
         for f in model:
             shutil.move(".\\players\\tmp" + "\\" + f, PATH)
-        #for l in os.listdir(".\\players\\tmp"):
-        #    os.remove(os.path.join(".\\players\\tmp", l))
-    
+
     def record_player(self):
         directories = self.sorted_directories()
         if len(directories) > 0:
