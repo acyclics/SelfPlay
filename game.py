@@ -6,7 +6,6 @@ from gym import spaces
 import subprocess
 import os
 from time import sleep
-import tensorflow as tf
 
 # CHANGABLE VARIABLES
 DEFAULT_SIZE = 200
@@ -33,8 +32,8 @@ class Game:
         }
         # Data specific
         self.obs_dim = 10
-        low = [-1, -1]
-        high = [1, 1]
+        low = [-10, -10]
+        high = [10, 10]
         self.action_space = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.float32)
         high = np.inf*np.ones(self.obs_dim)
         low = -high
@@ -45,8 +44,8 @@ class Game:
         # multu-agent specific
         self.mode = mode
         self.first = first
-        low = [-1, -1]
-        high = [1, 1]
+        low = [-10, -10]
+        high = [10, 10]
         low = [str(l) for l in low]
         high = [str(h) for h in high]
         low = '_'.join(low)
@@ -77,8 +76,6 @@ class Game:
         return oppe_a
     def action_handle(self, s, a):
         if self.mode == "Chaser":
-            a[0] = min(abs(a[0]), 5) * (a[0] / abs(a[0]))
-            a[1] = min(abs(a[1]), 5) * (a[1] / abs(a[1]))
             self.sim.data.qvel[0:2] = a[0:2]
             if not self.first:
                 oppe_a = self.read_model(s)
@@ -87,8 +84,6 @@ class Game:
             self.sim.data.qvel[2:4] = a[0:2]
             if not self.first:
                 oppe_a = self.read_model(s)
-                oppe_a[0] = min(abs(oppe_a[0]), 5) * (oppe_a[0] / abs(oppe_a[0]))
-                oppe_a[1] = min(abs(oppe_a[1]), 5) * (oppe_a[1] / abs(oppe_a[1]))
                 self.sim.data.qvel[0:2] = oppe_a[0:2]
     ''' END '''
 
@@ -114,8 +109,7 @@ class Game:
         if self.mode == "Chaser":
             if dist <= eps:
                 return True, 100000, -100000
-            else:
-                reward = -dist
+            reward = -dist
         else:
             if dist <= eps:
                 return True, -100000, 100000
@@ -133,9 +127,8 @@ class Game:
     def _get_obs(self):
         return np.concatenate([
             self.get_body_com("Chaser"),
-            self.sim.data.qvel[0:2],
             self.get_body_com("Runner"),
-            self.sim.data.qvel[2:4]
+            self.sim.data.qvel[0:4]
         ])
     ''' END '''
 

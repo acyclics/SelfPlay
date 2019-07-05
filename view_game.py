@@ -5,12 +5,12 @@ from algo_dppo_infer import Infer
 
 class test:
     def run(self):
-        mode = "Chaser"
-        opponent = "C:\\Users\\impec\\Desktop\\Mods\\ai\\projects\\selfplay\\players\\runner\\30\\24.954246683290606"
-        first = False
-        env = Game(5, 10000, mode, opponent, first)
+        mode = "Runner"
+        opponent = "C:\\Users\\impec\\Desktop\\Mods\\ai\\projects\\selfplay\\players\\chaser\\30\\25.740109390120463"
+        first = True
+        env = Game(5, 700, mode, opponent, first)
         obs = env.reset()
-        action = [1, 1]
+        action = [0, 10]
         for _ in range(500000):
             env.render()
             obs, rwd, done, info = env.step(action)

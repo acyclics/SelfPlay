@@ -164,7 +164,7 @@ class Worker(object):
                 player = "Chaser"
             else:
                 player = "Runner"
-            self.env = Game(5, 200, player, OPPONENT, FIRST)
+            self.env = Game(5, 1000, player, OPPONENT, FIRST)
         else:
             self.env = gym.make(ENVIRONMENT)
         #print("Starting Worker #{}".format(wid))
@@ -261,11 +261,19 @@ class Worker(object):
             self.EARLYSTOP = True
         else:
             self.BEST_REWARD = self.earlystop_r
+    
+    def DEBUG(self):
+        variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=["pi/pi_l1/", "pi/pi_mu"])
+        init_assign_op, init_feed_dict = tf.contrib.framework.assign_from_checkpoint(tf.train.latest_checkpoint(SAMPLE), variables_to_restore)
+        print(init_assign_op, init_feed_dict)
 
 def main(_):
     pass
 
 if __name__ == '__main__':
+    #config = tf.ConfigProto(device_count={'GPU':0, 'CPU':2})
+    #config.gpu_options.allow_growth = True
+    #config.gpu_options.per_process_gpu_memory_fraction = 0.9
     hyperparameters = read_hyperparameters()
     ENVIRONMENT = str(hyperparameters[0])
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -298,7 +306,8 @@ if __name__ == '__main__':
         tf.app.run(start_parameter_server(int(args.task_index), spec))
     elif args.job_name == "worker":
         w = Worker(int(args.task_index), spec)
-        tf.app.run(w.work())
+        #tf.app.run(w.work())
+        tf.app.run(w.DEBUG())
 
 '''
 https://arxiv.org/pdf/1710.03748.pdf adjustments:

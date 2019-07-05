@@ -32,6 +32,8 @@ class SelfPlay:
             self.process_compete()
         elif user_input == 2:
             self.process_configure()
+        elif user_input == 3:
+            self.process_elo()
         elif user_input == 0:
             return
         else:
@@ -208,3 +210,17 @@ class SelfPlay:
         rounds = input("How many rounds? ")
         os.system('cls')
         self.compete(rounds)
+    
+    def get_highest_elo(self, player):
+        hyperparameters = read_hyperparameters()
+        if str(player) == "1":
+            player = Player(hyperparameters[4], hyperparameters[0])
+        else:
+            player = Player(hyperparameters[18], hyperparameters[19])
+        rating, _, __ = player.highest_rating()
+        print(rating)
+
+    def process_elo(self):
+        player = input("Player 1 or 2? Please enter either 1 or 2: ")
+        os.system('cls')
+        self.get_highest_elo(player)

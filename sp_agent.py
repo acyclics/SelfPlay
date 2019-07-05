@@ -2,7 +2,6 @@ import trueskill
 import os
 import re
 import shutil
-import tensorflow as tf
 
 class Player:
     def __init__(self, name, env):

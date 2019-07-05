@@ -1,9 +1,9 @@
+import os
 import tensorflow as tf
 import numpy as np
 from sp_utils import read_hyperparameters
 import argparse
 from gym import spaces
-import os
 import sys
 
 class Infer(object):

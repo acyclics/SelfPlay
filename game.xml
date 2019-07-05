@@ -16,13 +16,13 @@
         </body>
         <body name="Chaser" pos="5 0 0">
             <geom rgba="1 0 0 1" type="sphere" condim="6" size="1" conaffinity="1" contype="1"/>
-            <joint name="cx" type="slide" pos="0 0 0" axis="1 0 0" range="-1 1" damping="1.0"/>
-            <joint name="cy" type="slide" pos="0 0 0" axis="0 1 0" range="-1 1" damping="1.0"/>
+            <joint name="cx" type="slide" pos="0 0 0" axis="1 0 0" limited="true" range="-11 1" damping="1.0"/>
+            <joint name="cy" type="slide" pos="0 0 0" axis="0 1 0" limited="true" range="-6 6" damping="1.0"/>
         </body>
         <body name="Runner" pos="-5 0 0">
             <geom rgba="0 1 0 1" type="sphere" condim="6" size="1" conaffinity="1" contype="1"/>
-            <joint name="rx" type="slide" pos="0 0 0" axis="1 0 0" range="-1 1" damping="1.0"/>
-            <joint name="ry" type="slide" pos="0 0 0" axis="0 1 0" range="-1 1" damping="1.0"/>
+            <joint name="rx" type="slide" pos="0 0 0" axis="1 0 0" limited="true" range="0.8 9.3" damping="1.0"/>
+            <joint name="ry" type="slide" pos="0 0 0" axis="0 1 0" limited="true" range="-4 4" damping="1.0"/>
         </body>
     </worldbody>
 </mujoco>
